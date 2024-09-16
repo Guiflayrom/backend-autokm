@@ -155,8 +155,10 @@ class EntryDataOperations(APIView):  # TODO
                 cliente = User.objects.create(
                     username=cnpj_destinatario,
                     first_name=nome_destinatario,
-                    email=f"{cnpj_destinatario}@exemplo.com",
+                    email=f"{cnpj_destinatario}@cliente.com",
                 )
+                cliente.set_password('inicial@123')
+                cliente.save()
 
             # Processar e criar os Links
             links_data = request.data.get("links", [])

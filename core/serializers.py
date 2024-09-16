@@ -33,6 +33,8 @@ class ParcelaSerializer(serializers.ModelSerializer):
             "vencimento",
             "situacao",
             "valor",
+            'file_url',
+            'numeracao_boleto'
         ]
 
 

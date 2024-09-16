@@ -19,6 +19,7 @@ class Parcela(models.Model):
     identificacao = models.CharField(max_length=255)
     parcela = models.CharField(max_length=50)
     vencimento = models.CharField(max_length=50)
+    file_url = models.CharField(max_length=1000, default="")
     situacao = models.CharField(
         max_length=50,
         choices=(
@@ -27,6 +28,7 @@ class Parcela(models.Model):
             ("Pago", "Pago"),
         ),
     )
+    numeracao_boleto = models.CharField(max_length=2000, null=True, blank=True)
     valor = models.CharField(max_length=255)
 
 
