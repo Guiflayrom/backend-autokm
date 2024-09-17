@@ -33,15 +33,17 @@ class ParcelaSerializer(serializers.ModelSerializer):
             "vencimento",
             "situacao",
             "valor",
-            'file_url',
-            'numeracao_boleto'
+            "file_url",
+            "numeracao_boleto",
         ]
 
 
 class LinkSerializer(serializers.ModelSerializer):
+    file64 = serializers.CharField(read_only=True)
+
     class Meta:
         model = Link
-        fields = "__all__"
+        fields = ["title", "filename", "file_url", "size", "file64"]
 
 
 class ImagemSerializer(serializers.ModelSerializer):

@@ -15,6 +15,44 @@ from rest_framework import status
 from django.db import transaction
 import xml.etree.ElementTree as ET
 import base64
+from os import path
+import boto3
+from botocore.exceptions import NoCredentialsError
+
+from dotenv import load_dotenv
+from os import getenv, remove
+from uuid import uuid4
+
+
+def upload_to_s3(file_name, bucket_name, object_name=None, region="us-east-1"):
+    load_dotenv()
+
+    if object_name is None:
+        object_name = file_name
+
+    # Especificando credenciais diretamente (não recomendado)
+    aws_access_key_id = getenv("ACCESS_KEY")
+    aws_secret_access_key = getenv("SECRET_KEY")
+
+    # Inicializando o cliente S3 com credenciais
+    s3_client = boto3.client(
+        "s3",
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+        region_name=region,
+    )
+
+    try:
+        s3_client.upload_file(file_name, bucket_name, object_name)
+        file_url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{object_name}"
+        return file_url
+
+    except FileNotFoundError:
+        print("O arquivo não foi encontrado.")
+        return None
+    except NoCredentialsError:
+        print("Credenciais não encontradas.")
+        return None
 
 
 class UserInfo(APIView):  # TODO
@@ -34,7 +72,7 @@ class UserInfo(APIView):  # TODO
         return Response(data, status=status.HTTP_200_OK)
 
 
-class EntryDataOperations(APIView):  # TODO
+class EntryDataOperations(APIView):  # TODO RESTFUL API
     def get(self, request, user_id="", format=None):
         try:
             id_oficina = User.objects.get(id=user_id).oficina.id
@@ -92,15 +130,9 @@ class EntryDataOperations(APIView):  # TODO
             # Extrair as informações do XML
             nnf_element = root.find(".//nfe:infNFe/nfe:ide/nfe:nNF", ns)
             dhEmi_element = root.find(".//nfe:infNFe/nfe:ide/nfe:dhEmi", ns)
-            vNF_element = root.find(
-                ".//nfe:infNFe/nfe:total/nfe:ICMSTot/nfe:vNF", ns
-            )
-            nome_dest_element = root.find(
-                ".//nfe:infNFe/nfe:dest/nfe:xNome", ns
-            )
-            cnpj_dest_element = root.find(
-                ".//nfe:infNFe/nfe:dest/nfe:CNPJ", ns
-            )
+            vNF_element = root.find(".//nfe:infNFe/nfe:total/nfe:ICMSTot/nfe:vNF", ns)
+            nome_dest_element = root.find(".//nfe:infNFe/nfe:dest/nfe:xNome", ns)
+            cnpj_dest_element = root.find(".//nfe:infNFe/nfe:dest/nfe:CNPJ", ns)
 
             # Truncar a data de emissão para os primeiros 10 caracteres (YYYY-MM-DD)
             data_emissao = (
@@ -113,14 +145,10 @@ class EntryDataOperations(APIView):  # TODO
             del des
             # Dados básicos extraídos do XML
             numero_nota = (
-                nnf_element.text
-                if nnf_element is not None
-                else "Não encontrado"
+                nnf_element.text if nnf_element is not None else "Não encontrado"
             )
             valor_nota = (
-                vNF_element.text
-                if vNF_element is not None
-                else "Não encontrado"
+                vNF_element.text if vNF_element is not None else "Não encontrado"
             )
             nome_destinatario = (
                 nome_dest_element.text
@@ -157,23 +185,48 @@ class EntryDataOperations(APIView):  # TODO
                     first_name=nome_destinatario,
                     email=f"{cnpj_destinatario}@cliente.com",
                 )
-                cliente.set_password('inicial@123')
+                cliente.set_password("inicial@123")
                 cliente.save()
 
-            # Processar e criar os Links
             links_data = request.data.get("links", [])
             link_ids = []
             for link in links_data:
+
+                with open(link["filename"], "wb") as f:
+                    conteudo = base64.b64decode(link["file64"])
+                    f.write(conteudo)
+
+                kb = path.getsize(link["filename"]) / 1024
+
+                link["size"] = int(kb)
+
+                url = upload_to_s3(
+                    link["filename"], "autokm", region="us-east-2"
+                )  # noqa
+
+                link["file_url"] = url
+
                 link_serializer = LinkSerializer(data=link)
+
+                remove(link["filename"])
+
                 if link_serializer.is_valid(raise_exception=True):
                     link_obj = link_serializer.save()
                     link_ids.append(link_obj.id)
 
-            # Processar e criar as Imagens
             imagens_data = request.data.get("imagens", [])
             imagem_ids = []
-            for imagem in imagens_data:
-                imagem_serializer = ImagemSerializer(data={"src": imagem})
+            for imagem_base64 in imagens_data:
+                imagem_nome = str(uuid4()) + ".jpg"
+                with open(imagem_nome, "wb") as f:
+                    conteudos = base64.b64decode(imagem_base64)
+                    f.write(conteudos)
+
+                imagem_url = upload_to_s3(imagem_nome, "autokm", region="us-east-2")
+
+                remove(imagem_nome)
+
+                imagem_serializer = ImagemSerializer(data={"src": imagem_url})
                 if imagem_serializer.is_valid(raise_exception=True):
                     imagem_obj = imagem_serializer.save()
                     imagem_ids.append(imagem_obj.id)
@@ -243,9 +296,7 @@ class EntryDataOperations(APIView):  # TODO
 
         except Exception as e:
             transaction.set_rollback(True)
-            return Response(
-                {"error": str(e)}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UsuarioViewSet(viewsets.ModelViewSet):

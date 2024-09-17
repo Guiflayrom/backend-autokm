@@ -35,8 +35,8 @@ class Parcela(models.Model):
 class Link(models.Model):
     title = models.CharField(max_length=255)
     filename = models.CharField(max_length=255)
-    file_url = models.CharField(max_length=1000)
-    size = models.IntegerField()
+    file_url = models.CharField(max_length=1000, null=True, blank=True)
+    size = models.IntegerField(null=True, blank=True)
 
 
 class Imagem(models.Model):
@@ -51,12 +51,8 @@ class Nota(models.Model):
     destinatario = models.CharField(max_length=255)
     cnpj = models.CharField(max_length=255)
     nome_carro = models.CharField(max_length=255)
-    cliente = models.ForeignKey(
-        User, on_delete=models.PROTECT, related_name="notas"
-    )
-    oficina = models.ForeignKey(
-        Oficina, on_delete=models.PROTECT, related_name="notas"
-    )
+    cliente = models.ForeignKey(User, on_delete=models.PROTECT, related_name="notas")
+    oficina = models.ForeignKey(Oficina, on_delete=models.PROTECT, related_name="notas")
     parcelas = models.ManyToManyField(
         Parcela,
         related_name="nota",

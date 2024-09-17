@@ -13,6 +13,8 @@ django = "^5.1"
 djangorestframework = "^3.15.2"
 djangorestframework-simplejwt = "^5.3.1"
 drf-yasg = "^1.21.7"
+boto3 = "^1.35.20"
+python-dotenv = "^1.0.1"
 
 
 [tool.poetry.group.dev.dependencies]
